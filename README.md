@@ -1,6 +1,6 @@
 # COMPILADORES
 ```c
-#define AUTHOR ["Guilherme Francis"]
+#define AUTOR ["Guilherme Francis"]
 #define DISCIPLINA "Compiladores"
 #define PROFESSOR "Flávio Schiavoni"
 ```
@@ -43,7 +43,7 @@ Começamos lendo o exemplo do código que esta no arquivo.txt, com isso consegui
 
 ```bash
 make        # Executa o analisador léxico com input.txt
-
+```
 
 
 
