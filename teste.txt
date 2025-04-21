@@ -1,0 +1,16 @@
+int soma(int a, int b) {
+    return a + b;
+}
+
+
+int main() {
+    int i = 0;
+    while (i < 10) {
+        if (i+2 == 0) {
+            i = i + 1;
+        }
+    }
+    return i;
+}
+
+int resultado = (a + b) * (c - d) / 2;

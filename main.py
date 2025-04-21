@@ -4,7 +4,7 @@ import sys
 #Lista das palavras reservadas
 KEYWORDS = {'if', 'else', 'while', 'for', 'return', 'int', 'float', 'char', 'void','auto', 'case', 'else', 'const','double', 'long'}
 #Lista dos operadores
-OPERATORS = {'+', '-', '*', '/', '=', '==', '!=', '<', '<=', '>', '>=', '+=', '%','-=','&&','!','++','--'}
+OPERATORS = {'+', '-', '*', '/', '=', '==', '!=', '<', '<=', '>', '>=', '+=', '%', '-=', '&&', '!', '++', '--',}
 #Lista dos separadores
 SEPARATORS = {'(', ')', '{', '}', '[', ']', ',', ';'}
 
@@ -12,7 +12,7 @@ SEPARATORS = {'(', ')', '{', '}', '[', ']', ',', ';'}
 token_specification = [
     ('NUMBER',   r'\d+(\.\d+)?'),
     ('ID',       r'[A-Za-z_]\w*'),
-    ('OP',       r'==|!=|<=|>=|[+\-*/=<>]'),
+    ('OP',       r'==|!=|<=|>=|[+\-*/=%!<>]'),
     ('SEP',      r'[()[\]{};,]'),
     ('SKIP',     r'[ \t]+'),
     ('NEWLINE',  r'\n'),

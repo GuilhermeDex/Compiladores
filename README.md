@@ -1,6 +1,6 @@
 # COMPILADORES
 ```c
-#define AUTOR ["Guilherme Francis"]
+#define AUTOR "Guilherme Francis"
 #define DISCIPLINA "Compiladores"
 #define PROFESSOR "Flávio Schiavoni"
 ```
