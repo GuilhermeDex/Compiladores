@@ -6,7 +6,7 @@ int soma(int a, int b) {
 int main() {
     int i = 0;
     while (i < 10) {
-        if (i+2 == 0) {
+        if (i % 2 == 0) {
             i = i + 1;
         }
     }
@@ -14,3 +14,14 @@ int main() {
 }
 
 int resultado = (a + b) * (c - d) / 2;
+
+
+
+
+
+
+
+int main() {
+    return @123;
+}
+
