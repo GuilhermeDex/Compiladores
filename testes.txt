@@ -1,27 +1,12 @@
-int soma(int a, int b) {
-    return a + b;
-}
-
-
-int main() {
-    int i = 0;
-    while (i < 10) {
-        if (i % 2 == 0) {
-            i = i + 1;
-        }
-    }
-    return i;
-}
-
-int resultado = (a + b) * (c - d) / 2;
-
-
-
-
-
-
-
-int main() {
-    return @123;
-}
-
+program     ::= { statement }
+statement   ::= declaration | assignment | if_stmt | while_stmt | return_stmt | block
+declaration ::= type ID [ "=" expression ] ";"
+assignment  ::= ID "=" expression ";"
+if_stmt     ::= "if" "(" expression ")" statement [ "else" statement ]
+while_stmt  ::= "while" "(" expression ")" statement
+return_stmt ::= "return" expression ";"
+block       ::= "{" { statement } "}"
+type        ::= "int" | "float" | "char"
+expression  ::= term { ("+" | "-") term }
+term        ::= factor { ("*" | "/") factor }
+factor      ::= ID | NUMBER | "(" expression ")"
