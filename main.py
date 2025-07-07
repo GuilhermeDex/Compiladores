@@ -1,14 +1,14 @@
 import re
 import sys
 
-#Lista das palavras reservadas
-KEYWORDS = {'if', 'else', 'while', 'for', 'return', 'int', 'float', 'char', 'void','auto', 'case', 'else', 'const','double', 'long'}
-#Lista dos operadores
-OPERATORS = {'+', '-', '*', '/', '=', '==', '!=', '<', '<=', '>', '>=', '+=', '%', '-=', '&&', '!', '++', '--',}
-#Lista dos separadores
+# Lista das palavras reservadas
+KEYWORDS = {'if', 'else', 'while', 'for', 'return', 'int', 'float', 'char', 'void', 'auto', 'case', 'const', 'double', 'long'}
+# Lista dos operadores
+OPERATORS = {'+', '-', '*', '/', '=', '==', '!=', '<', '<=', '>', '>=', '+=', '%', '-=', '&&', '!', '++', '--'}
+# Lista dos separadores
 SEPARATORS = {'(', ')', '{', '}', '[', ']', ',', ';'}
 
-#Especificao dos tokens
+# Especificacao dos tokens
 token_specification = [
     ('NUMBER',   r'\d+(\.\d+)?'),
     ('ID',       r'[A-Za-z_]\w*'),
@@ -19,8 +19,7 @@ token_specification = [
     ('COMMENT',  r'//.*'),
 ]
 
-
-#Compilando o REGEX
+# Compilando o REGEX
 tok_regex = '|'.join(f'(?P<{name}>{pattern})' for name, pattern in token_specification)
 get_token = re.compile(tok_regex).match
 
@@ -40,7 +39,7 @@ def lexer(code):
                 col = 1
                 pos = mo.end()
                 continue
-            elif kind == 'SKIP' or kind == 'COMMENT':               #caso tenha algum comentario apenas ignorar
+            elif kind == 'SKIP' or kind == 'COMMENT':
                 pass
             elif kind == 'NUMBER':
                 tokens.append(('NUMBER', value))
@@ -54,24 +53,71 @@ def lexer(code):
             elif kind == 'SEP':
                 tokens.append(('SEPARATOR', value))
             else:
-                raise RuntimeError(f'Token inesperado ({value}) na linha {line}, coluna {col}')         #caso tenha algum token inesperado aparecera um erro
+                raise RuntimeError(f'Token inesperado ({value}) na linha {line}, coluna {col}')
             
             advance = mo.end() - mo.start()
             pos = mo.end()
             col += advance
         else:
             error_char = code[pos]
-            raise RuntimeError(f'Erro lexico: caractere invalido "{error_char}" na linha {line}, coluna {col}')
+            raise RuntimeError(f'Erro léxico: caractere invalido "{error_char}" na linha {line}, coluna {col}')
     return tokens
 
 def log(categoria, mensagem):
     tag = f"[{categoria.upper():<10}]"
     print(f"{tag} {mensagem}")
 
+
+class CodeGenerator:
+    def __init__(self):
+        self.lines = []
+        self.indent = 0
+
+    def emit(self, line):
+        self.lines.append('    ' * self.indent + line)
+
+    def open_block(self):
+        self.emit('{')
+        self.indent += 1
+
+    def close_block(self):
+        self.indent -= 1
+        self.emit('}')
+
+    def get_code(self):
+        return '\n'.join(self.lines)
+
+
 class Parser:
     def __init__(self, tokens):
         self.tokens = tokens
         self.pos = 0
+        self.scopes = [{}]  # pilha de escopos
+        self.codegen = CodeGenerator()
+        self.const_table = {}  # Para propagacao de constantes
+
+
+    def current_scope(self):
+        return self.scopes[-1]
+
+    def add_symbol(self, name, tipo):
+        if name in self.current_scope():
+            raise SyntaxError(f"Variavel '{name}' ja declarada no escopo atual")
+        self.current_scope()[name] = tipo
+
+    def find_symbol(self, name):
+        for scope in reversed(self.scopes):
+            if name in scope:
+                return scope[name]
+        raise SyntaxError(f"Variavel '{name}' nao declarada")
+
+    def infer_type(self, valor):
+        try:
+            float_val = float(valor)
+            return 'float' if '.' in valor else 'int'
+        except:
+            return 'unknown'
+ 
 
     def match(self, expected_type, expected_value=None):
         if self.pos < len(self.tokens):
@@ -134,67 +180,129 @@ class Parser:
         self.expression()
         self.expect('SEPARATOR', ';')
 
-    def declaration(self):
+    def declaration(self):                             
         tipo = self.expect('KEYWORD')
         nome = self.expect('IDENTIFIER')
-        log("declaracao", f"Tipo: {tipo}, Nome: {nome}")
+        self.add_symbol(nome, tipo)
+        log("declaraçao", f"Tipo: {tipo}, Nome: {nome}")
+        self.codegen.emit(f"{tipo} {nome};")
         if self.match('OPERATOR', '='):
-            log("inicializacao", f"Variavel: {nome} com expressao:")
-            self.expression()
+            expr, valor_tipo = self.expression()
+            if not self.check_type_compatibility(tipo, valor_tipo):
+                raise SyntaxError(f"Incompatibilidade de tipo: esperado {tipo}, mas recebeu {valor_tipo}")
+            if expr.isdigit():
+                self.const_table[nome] = expr  #  salva valor para propagação
+            else:
+                self.const_table.pop(nome, None)
+            self.codegen.emit(f"{nome} = {expr};")
         self.expect('SEPARATOR', ';')
 
     def assignment(self):
         var = self.expect('IDENTIFIER')
+        tipo_var = self.find_symbol(var)
         self.expect('OPERATOR', '=')
-        log("atribuicao", f"Variavel: {var} recebe expressao:")
-        self.expression()
-        self.expect('SEPARATOR', ';')
+        valor, valor_tipo = self.expression()
+        if not self.check_type_compatibility(tipo_var, valor_tipo):
+            raise SyntaxError(f"Incompatibilidade de tipo na atribuiçao de '{var}': esperado {tipo_var}, mas recebeu {valor_tipo}")
+        if valor.isdigit():                      # salvar valor constante se for numerico
+            self.const_table[var] = valor
+        else:
+            self.const_table.pop(var, None)
+        self.codegen.emit(f"{var} = {valor};")
+        self.expect('SEPARATOR', ';') 
+
 
     def block(self):
         self.expect('SEPARATOR', '{')
-        log("bloco", "Inicio de bloco {")
+        log("bloco", "Início de bloco {")
+        self.scopes.append({})
+        self.codegen.open_block()
         while not self.check('SEPARATOR', '}'):
             self.statement()
         self.expect('SEPARATOR', '}')
+        self.scopes.pop()
+        self.codegen.close_block()
         log("bloco", "Fim de bloco }")
 
     def expression(self):
         log("expressao", "analisando expressao")
-        self.simple_expression()
+        expr, tipo = self.simple_expression()
         while self.match('OPERATOR', '==') or self.match('OPERATOR', '!=') or \
-              self.match('OPERATOR', '<') or self.match('OPERATOR', '<=') or \
-              self.match('OPERATOR', '>') or self.match('OPERATOR', '>='):
+            self.match('OPERATOR', '<') or self.match('OPERATOR', '<=') or \
+            self.match('OPERATOR', '>') or self.match('OPERATOR', '>='):
             log("expressao", "operador relacional encontrado")
-            self.simple_expression()
+            right, _ = self.simple_expression()
+            expr = f"{expr} {self.tokens[self.pos - 1][1]} {right}"
+            tipo = 'int'
+        return expr, tipo
+
 
     def simple_expression(self):
-        self.term()
-        while self.match('OPERATOR', '+') or self.match('OPERATOR', '-'):
-            log("expressao", "operador aditivo encontrado")
-            self.term()
+        left = self.term()
+        tipo_left = self.infer_type(left)
+        while self.check('OPERATOR', '+') or self.check('OPERATOR', '-'):
+            op = self.expect('OPERATOR')
+            right = self.term()
+            tipo_right = self.infer_type(right)
+            try:
+                result = str(eval(f"{left} {op} {right}"))                           # otimizacao de folding que eh quando ja faz a soma ou subtcao de uma variavel direto
+                log("otimizacao", f"Folding: {left} {op} {right} => {result}")
+                left = result
+                tipo_left = self.infer_type(result)
+            except:
+                left = f"{left} {op} {right}"
+                tipo_left = 'float' if 'float' in (tipo_left, tipo_right) else 'int'
+        return left, tipo_left
+
 
     def term(self):
-        self.factor()
-        while self.match('OPERATOR', '*') or self.match('OPERATOR', '/'):
-            self.factor()
+        tipo = self.factor()
+        while self.check('OPERATOR', '*') or self.check('OPERATOR', '/'):
+            op = self.expect('OPERATOR')
+            tipo_direito = self.factor()
+            if tipo == 'float' or tipo_direito == 'float':
+                tipo = 'float'
+            else:
+                tipo = 'int'
+
+        return tipo
+
 
     def factor(self):
-        if self.match('IDENTIFIER'):
-            log("fator", "Identificador")
-        elif self.match('NUMBER'):
-            log("fator", "Numero")
+        if self.check('IDENTIFIER'):
+            nome = self.expect('IDENTIFIER')
+            log("fator", f"Identificador {nome}")
+            self.find_symbol(nome)
+            if nome in self.const_table:
+                log("propagacao", f"Substituindo {nome} por constante {self.const_table[nome]}")                        #propagacao na leitura de variaveis
+                return self.const_table[nome]
+            return nome
+        elif self.check('NUMBER'):
+            valor = self.expect('NUMBER')
+            log("fator", f"Numero {valor}")
+            return valor
         elif self.match('SEPARATOR', '('):
             log("fator", "Expressao entre parenteses")
-            self.expression()
+            expr = self.expression()
             self.expect('SEPARATOR', ')')
+            return f"({expr})"
         else:
             raise SyntaxError(f"Fator invalido em {self.tokens[self.pos]}")
+
+    def check_type_compatibility(self, tipo1, tipo2):
+        if tipo1 == tipo2:
+            return True
+        if tipo1 == 'float' and tipo2 == 'int':
+            return True
+        return False
 
     def check(self, expected_type, expected_value=None):
         if self.pos < len(self.tokens):
             token_type, token_value = self.tokens[self.pos]
             return token_type == expected_type and (expected_value is None or token_value == expected_value)
         return False
+
+
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
@@ -209,8 +317,11 @@ if __name__ == '__main__':
         tokens = lexer(code)
         parser = Parser(tokens)
         parser.parse()
-        print("Analise sintatica concluida com sucesso!")
+        print("Analise sintatica e semantica concluida com sucesso!")
+        print("\n--- CODIGO GERADO ---")
+        print(parser.codegen.get_code())
+
     except RuntimeError as e:
         print(f"Erro lexico: {e}")
     except SyntaxError as e:
-        print(f"Erro sintatico: {e}")
+        print(f"Erro sintatico/semantico: {e}")
